@@ -1,0 +1,12 @@
+{
+  "domain": "cambridge_cxn",
+  "name": "Cambridge Audio CXN",
+  "documentation": "https://github.com/lievencoghe/cambridge_cxn",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": [
+    "@lievencoghe"
+  ],
+  "version": "0.2",
+  "iot_class": "local_push"
+}
