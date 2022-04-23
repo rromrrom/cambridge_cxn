@@ -12,7 +12,7 @@ import requests
 import uuid
 import voluptuous as vol
 
-from homeassistant.components.media_player import MediaPlayerDevice, PLATFORM_SCHEMA
+from homeassistant.components.media_player import MediaPlayerEntity, PLATFORM_SCHEMA
 
 from homeassistant.components.media_player.const import (
     SUPPORT_PAUSE,
@@ -70,7 +70,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     add_devices([CambridgeCXNDevice(host, name)])
 
 
-class CambridgeCXNDevice(MediaPlayerDevice):
+class CambridgeCXNDevice(MediaPlayerEntity):
     def __init__(self, host, name):
         """Initialize the Cambridge CXN."""
         _LOGGER.info("Setting up Cambridge CXN")
