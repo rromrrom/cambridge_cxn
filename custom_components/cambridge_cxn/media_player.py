@@ -189,23 +189,7 @@ class CambridgeCXNDevice(MediaPlayerEntity):
         """Return the name of the device."""
         return self._name
 
-    @property
-    def source(self):
-        """Return the preset if source is IR (Internet Radio)."""
-        if self._mediasource == "IR":
-            presets = json.loads(
-                urllib.request.urlopen(
-                    "http://" + self._host + "/smoip/presets/list"
-                ).read()
-            )["data"]
-            presets2 = presets.get("presets")
-            for i in presets2:
-                if i["is_playing"]:
-                    return i["name"]
-            # if nothing was found, then just return IR anyway
-            return self._source_list[self._mediasource]
-        else:
-            return self._source_list[self._mediasource]
+
 
     @property
     def source_list(self):
