@@ -25,13 +25,12 @@ from homeassistant.components.media_player.const import (
     SUPPORT_TURN_ON,
     SUPPORT_VOLUME_MUTE,
     SUPPORT_VOLUME_STEP,
-    SUPPORT_VOLUME_SET,
 )
 
 from homeassistant.const import CONF_HOST, CONF_NAME, STATE_OFF, STATE_ON, STATE_PAUSED, STATE_PLAYING, STATE_IDLE, STATE_STANDBY
 import homeassistant.helpers.config_validation as cv
 
-__version__ = "0.3"
+__version__ = "0.4"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,10 +45,10 @@ SUPPORT_CXN = (
     | SUPPORT_TURN_ON
     | SUPPORT_VOLUME_MUTE
     | SUPPORT_VOLUME_STEP
-    | SUPPORT_VOLUME_SET
 )
 
 DEFAULT_NAME = "Cambridge Audio CXN"
+DEVICE_CLASS = "receiver"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -82,8 +81,8 @@ class CambridgeCXNDevice(MediaPlayerEntity):
         self._name = name
         self._pwstate = "NETWORK"
         self._should_setup_sources = True
-        self._source_list = None
-        self._source_list_reverse = None
+        self._source_list = {}
+        self._source_list_reverse = {}
         self._state = STATE_OFF
         self._volume = 0
         self._media_title = None
@@ -141,20 +140,29 @@ class CambridgeCXNDevice(MediaPlayerEntity):
                 "http://" + self._host + "/smoip/system/power"
             ).read()
         )["data"]["power"]
-        self._volume = (
-            json.loads(
-                urllib.request.urlopen(
-                    "http://" + self._host + "/smoip/zone/state"
-                ).read()
-            )["data"]["volume_percent"]
-            / 100
-        )
+        try:
+            self._volume = (
+                json.loads(
+                    urllib.request.urlopen(
+                        "http://" + self._host + "/smoip/zone/state"
+                    ).read()
+                )["data"]["volume_percent"]
+                / 100
+            )
+        except:
+            self._volume = 0
+
         self._mediasource = json.loads(
             urllib.request.urlopen("http://" + self._host + "/smoip/zone/state").read()
         )["data"]["source"]
-        self._muted = json.loads(
-            urllib.request.urlopen("http://" + self._host + "/smoip/zone/state").read()
-        )["data"]["mute"]
+
+        try:
+            self._muted = json.loads(
+                urllib.request.urlopen("http://" + self._host + "/smoip/zone/state").read()
+            )["data"]["mute"]
+        except:
+            self._muted = False
+
         playstate = urllib.request.urlopen("http://" + self._host + "/smoip/zone/play_state").read()
         try:
             self._media_title = json.loads(playstate)["data"]["metadata"]["title"] 
@@ -170,7 +178,7 @@ class CambridgeCXNDevice(MediaPlayerEntity):
         except:
             self._artwork_url = None
         self._state = json.loads(playstate)["data"]["state"]
-        
+
         if self._should_setup_sources:
             self._setup_sources()
             self._should_setup_sources = False
@@ -234,6 +242,17 @@ class CambridgeCXNDevice(MediaPlayerEntity):
     def mute_volume(self, mute):
         self.url_command("smoip/zone/state?mute=" + ("true" if mute else "false"))
 
+    @property
+    def source(self):
+        return self._source_list[self._mediasource]
+
+    @property
+    def device_class(self):
+        return DEVICE_CLASS
+
+    def mute_volume(self, mute):
+        self.get("/smoip/zone/state?mute=" + ("true" if mute else "false"))
+
     def select_source(self, source):
         reverse_source = self._source_list_reverse[source]
         if reverse_source in [
@@ -250,10 +269,6 @@ class CambridgeCXNDevice(MediaPlayerEntity):
             self.url_command("smoip/zone/state?source=" + reverse_source)
         else:
             self.url_command("smoip/zone/recall_preset?preset=" + reverse_source)
-
-    def set_volume_level(self, volume):
-        vol_str = "smoip/zone/state?volume_percent=" + str(int(volume * 100))
-        self.url_command(vol_str)
 
     def turn_on(self):
         self.url_command("smoip/system/power?power=ON")
