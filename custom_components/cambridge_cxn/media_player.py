@@ -25,6 +25,7 @@ from homeassistant.components.media_player.const import (
     SUPPORT_TURN_ON,
     SUPPORT_VOLUME_MUTE,
     SUPPORT_VOLUME_STEP,
+    SUPPORT_VOLUME_SET,
 )
 
 from homeassistant.const import CONF_HOST, CONF_NAME, STATE_OFF, STATE_ON, STATE_PAUSED, STATE_PLAYING, STATE_IDLE, STATE_STANDBY
@@ -45,6 +46,7 @@ SUPPORT_CXN = (
     | SUPPORT_TURN_ON
     | SUPPORT_VOLUME_MUTE
     | SUPPORT_VOLUME_STEP
+    | SUPPORT_VOLUME_SET
 )
 
 DEFAULT_NAME = "Cambridge Audio CXN"
