@@ -176,7 +176,22 @@ class CambridgeCXNDevice(MediaPlayerEntity):
     def media_previous_track(self):
         self._command("/smoip/zone/play_control?skip_track=-1")
 
+    def isConnected(self):
+        try:
+            powerstate = self._getPowerState()
+            if "data" in  powerstate:
+                return True
+        except:
+            pass
+
+        return False
+
     def update(self):
+
+        if not self.isConnected():
+            _LOGGER.error("Cambridge CXN is not connected")
+            return
+
         powerstate = self._getPowerState()
         self._pwstate = powerstate["data"]["power"]
 
@@ -233,7 +248,14 @@ class CambridgeCXNDevice(MediaPlayerEntity):
     def _command(self, command):
         """Establish a telnet connection and sends `command`."""
         _LOGGER.debug("Sending command: %s", command)
-        return urllib.request.urlopen("http://" + self._host + command).read()
+
+        rc = "{}"
+        try:
+            rc = urllib.request.urlopen("http://" + self._host + command).read()
+        except:
+            _LOGGER.error("network communication error")
+
+        return rc
 
     @property
     def is_volume_muted(self):
