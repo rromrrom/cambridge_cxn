@@ -1,268 +1,269 @@
 """
-Support for interface with a Cambridge Audio CXN media player.
+Support for controlling a Parasound 200 pre amplifier over a serial connection.
 
 For more details about this platform, please refer to the documentation at
-https://github.com/lievencoghe/cambridge_cxn
+https://github.com/lievencoghe/cambridge_audio_cxa
+https://github.com/raghavrithvik/parasound_200pre
 """
 
-import json
 import logging
 import urllib.request
-import requests
-import uuid
 import voluptuous as vol
+from serial import Serial
 
 from homeassistant.components.media_player import MediaPlayerEntity, PLATFORM_SCHEMA
 
 from homeassistant.components.media_player.const import (
-    SUPPORT_PAUSE,
-    SUPPORT_PLAY,
-    SUPPORT_STOP,
-    SUPPORT_PREVIOUS_TRACK,
-    SUPPORT_NEXT_TRACK,
     SUPPORT_SELECT_SOURCE,
+    SUPPORT_SELECT_SOUND_MODE,
     SUPPORT_TURN_OFF,
     SUPPORT_TURN_ON,
     SUPPORT_VOLUME_MUTE,
     SUPPORT_VOLUME_STEP,
-    SUPPORT_VOLUME_SET,
 )
 
-from homeassistant.const import CONF_HOST, CONF_NAME, STATE_OFF, STATE_ON, STATE_PAUSED, STATE_PLAYING, STATE_IDLE, STATE_STANDBY
+from homeassistant.const import (
+    CONF_DEVICE,
+    CONF_NAME,
+    CONF_SLAVE,
+    CONF_TYPE,
+    STATE_OFF,
+    STATE_ON,
+)
+
 import homeassistant.helpers.config_validation as cv
 
-__version__ = "0.3"
+import homeassistant.loader as loader
+
+__version__ = "0.1"
 
 _LOGGER = logging.getLogger(__name__)
 
-SUPPORT_CXN = (
-    SUPPORT_PAUSE
-    | SUPPORT_PLAY
-    | SUPPORT_STOP
-    | SUPPORT_PREVIOUS_TRACK
-    | SUPPORT_NEXT_TRACK
-    | SUPPORT_SELECT_SOURCE
+
+SUPPORT_CXA = (
+    SUPPORT_SELECT_SOURCE
+    | SUPPORT_SELECT_SOUND_MODE
     | SUPPORT_TURN_OFF
     | SUPPORT_TURN_ON
     | SUPPORT_VOLUME_MUTE
     | SUPPORT_VOLUME_STEP
-    | SUPPORT_VOLUME_SET
 )
 
-DEFAULT_NAME = "Cambridge Audio CXN"
+SUPPORT_CXA_WITH_CXN = (
+    SUPPORT_SELECT_SOURCE
+    | SUPPORT_SELECT_SOUND_MODE
+    | SUPPORT_TURN_OFF
+    | SUPPORT_TURN_ON
+    | SUPPORT_VOLUME_MUTE
+    | SUPPORT_VOLUME_STEP
+)
+
+DEFAULT_NAME = "Parasound 200pro"
+DEVICE_CLASS = "receiver"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
-        vol.Required(CONF_HOST): cv.string,
+        vol.Required(CONF_DEVICE): cv.string,
+        vol.Required(CONF_TYPE): cv.string,      
         vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
+        vol.Optional(CONF_SLAVE): cv.string,
     }
 )
 
+NORMAL_INPUTS_CXA61 = {
+    "A1" : "57,20,31,20,32,20,36,0D",
+    "A2" : "57,20,31,20,32,20,37,0D",
+    "A3" : "57,20,31,20,32,20,38,0D",
+    "A4" : "#03,04,03",
+    "D1" : "#03,04,04",
+    "D2" : "#03,04,05",
+    "D3" : "#03,04,06",
+    "Bluetooth" : "#03,04,14",
+    "USB" : "#03,04,16",
+    "MP3" : "#03,04,10"
+}
+
+NORMAL_INPUTS_CXA81 = {
+    "A1" : "#03,04,00",
+    "A2" : "#03,04,01",
+    "A3" : "#03,04,02",
+    "A4" : "#03,04,03",
+    "D1" : "#03,04,04",
+    "D2" : "#03,04,05",
+    "D3" : "#03,04,06",
+    "Bluetooth" : "#03,04,14",
+    "USB" : "#03,04,16",
+    "XLR" : "#03,04,20"
+}
+
+NORMAL_INPUTS_AMP_REPLY_CXA61 = {
+    "*S1<CR>" : "A1",
+    "*S2<CR> " : "A2",
+    "*S3<CR>" : "A3",
+    "#04,01,03" : "A4",
+    "#04,01,04" : "D1",
+    "#04,01,05" : "D2",
+    "#04,01,06" : "D3",
+    "#04,01,14" : "Bluetooth",
+    "#04,01,16" : "USB",
+    "#04,01,10" : "MP3"
+}
+
+NORMAL_INPUTS_AMP_REPLY_CXA81 = {
+    "*S1<CR>" : "A1",
+    "*S2<CR> " : "A2",
+    "*S3<CR>" : "A3",
+    "#04,01,03" : "A4",
+    "#04,01,04" : "D1",
+    "#04,01,05" : "D2",
+    "#04,01,06" : "D3",
+    "#04,01,14" : "Bluetooth",
+    "#04,01,16" : "USB",
+    "#04,01,20" : "XLR"
+}
+
+SOUND_MODES = {
+    "A" : "#1,25,0",
+    "AB" : "#1,25,1",
+    "B" : "#1,25,2"
+}
+
+AMP_CMD_GET_PWSTATE = "52,20,31,20,31,0D"
+AMP_CMD_GET_CURRENT_SOURCE = "52,20,31,20,32,0D"
+AMP_CMD_GET_MUTE_STATE = "52,20,31,20,31,30,0D"
+
+AMP_CMD_SET_MUTE_ON = "57,20,31,20,31,30,20,32,0D"
+AMP_CMD_SET_MUTE_OFF = "57,20,31,20,31,30,20,31,0D"
+AMP_CMD_SET_PWR_ON = "57,20,31,20,31,20,32,0D"
+AMP_CMD_SET_PWR_OFF = "57,20,31,20,31,20,31,0D"
+AMP_CMD_SET_VOL_UP = "57,20,31,20,39,20,31,0D"
+AMP_CMD_SET_VOL_DOWN = "57,20,31,20,39,20,32,0D"
+
+AMP_REPLY_PWR_ON = "*G1<CR>"
+AMP_REPLY_PWR_STANDBY = "*G0<CR>"
+AMP_REPLY_MUTE_ON = "*M1<CR>"
+AMP_REPLY_MUTE_OFF = "*M0<CR>"
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
-    host = config.get(CONF_HOST)
+    device = config.get(CONF_DEVICE)
     name = config.get(CONF_NAME)
+    cxatype = config.get(CONF_TYPE)
+    cxnhost = config.get(CONF_SLAVE)
 
-    if host is None:
-        _LOGGER.error("No Cambridge CXN IP address found in configuration file")
+    if device is None:
+        _LOGGER.error("No serial port defined in configuration.yaml for Cambridge CXA")
         return
 
-    add_devices([CambridgeCXNDevice(host, name)])
+    if cxatype is None:
+        _LOGGER.error("No CXA type found in configuration.yaml file. Possible values are CXA61, CXA81")
+        return
+
+    add_devices([CambridgeCXADevice(hass, device, name, cxatype, cxnhost)])
 
 
-class CambridgeCXNDevice(MediaPlayerEntity):
-    def __init__(self, host, name):
-        """Initialize the Cambridge CXN."""
-        _LOGGER.info("Setting up Cambridge CXN")
-        self._host = host
-        self._max_volume = 100
-        self._mediasource = ""
-        self._min_volume = 0
-        self._muted = False
+class CambridgeCXADevice(MediaPlayerEntity):
+    def __init__(self, hass, device, name, cxatype, cxnhost):
+        _LOGGER.info("Setting up Cambridge CXA")
+        self._hass = hass
+        self._device = device
+        self._mediasource = "52,20,31,20,31,33,0D"
+        self._speakersactive = ""
+        self._muted = AMP_REPLY_MUTE_OFF
         self._name = name
-        self._pwstate = "NETWORK"
-        self._should_setup_sources = True
-        self._source_list = None
-        self._source_list_reverse = None
+        self._pwstate = ""
+        self._cxatype = cxatype.upper()
+        if self._cxatype == "CXA61":
+            self._source_list = NORMAL_INPUTS_CXA61.copy()
+            self._source_reply_list = NORMAL_INPUTS_AMP_REPLY_CXA61.copy()
+        else:
+            self._source_list = NORMAL_INPUTS_CXA81.copy()
+            self._source_reply_list = NORMAL_INPUTS_AMP_REPLY_CXA81.copy()
+        self._sound_mode_list = SOUND_MODES.copy()
         self._state = STATE_OFF
-        self._volume = 0
-        self._media_title = None
-        self._media_artist = None
-        self._artwork_url = None
-
-        _LOGGER.debug(
-            "Set up Cambridge CXN with IP: %s", host,
-        )
-
-        self.update()
-
-    def _setup_sources(self):
-        _LOGGER.debug("Setting up CXN sources")
-        sources = json.loads(
-            urllib.request.urlopen(
-                "http://" + self._host + "/smoip/system/sources"
-            ).read()
-        )["data"]
-        sources2 = sources.get("sources")
-        self._source_list = {}
-        self._source_list_reverse = {}
-        for i in sources2:
-            _LOGGER.debug("Setting up CXN sources... %s", i["id"])
-            source = i["id"]
-            configured_name = i["name"]
-            self._source_list[source] = configured_name
-            self._source_list_reverse[configured_name] = source
-
-        presets = json.loads(
-            urllib.request.urlopen(
-                "http://" + self._host + "/smoip/presets/list"
-            ).read()
-        )["data"]
-        presets2 = presets.get("presets")
-        for i in presets2:
-            _LOGGER.debug("Setting up CXN sources... %s", i["id"])
-            source = str(i["id"])
-            configured_name = i["name"]
-            self._source_list[source] = configured_name
-            self._source_list_reverse[configured_name] = source
-
-    def media_play_pause(self):
-        self.url_command("smoip/zone/play_control?action=toggle")
-
-    def media_next_track(self):
-        self.url_command("smoip/zone/play_control?skip_track=1")
-
-    def media_previous_track(self):
-        self.url_command("smoip/zone/play_control?skip_track=-1")
-
-    def update(self):
-        self._pwstate = json.loads(
-            urllib.request.urlopen(
-                "http://" + self._host + "/smoip/system/power"
-            ).read()
-        )["data"]["power"]
-        self._volume = (
-            json.loads(
-                urllib.request.urlopen(
-                    "http://" + self._host + "/smoip/zone/state"
-                ).read()
-            )["data"]["volume_percent"]
-            / 100
-        )
-        self._mediasource = json.loads(
-            urllib.request.urlopen("http://" + self._host + "/smoip/zone/state").read()
-        )["data"]["source"]
-        self._muted = json.loads(
-            urllib.request.urlopen("http://" + self._host + "/smoip/zone/state").read()
-        )["data"]["mute"]
-        playstate = urllib.request.urlopen("http://" + self._host + "/smoip/zone/play_state").read()
-        try:
-            self._media_title = json.loads(playstate)["data"]["metadata"]["title"] 
-        except:
-            self._media_title = None
-        try:
-            self._media_artist = json.loads(playstate)["data"]["metadata"]["artist"]
-        except:
-            self._media_artist = None
-        try:
-            urllib.request.urlretrieve(json.loads(playstate)["data"]["metadata"]["art_url"], "/config/www/cxn-artwork.jpg")
-            self._artwork_url = "/local/cxn-artwork.jpg?" + str(uuid.uuid4())
-        except:
-            self._artwork_url = None
-        self._state = json.loads(playstate)["data"]["state"]
+        self._cxnhost = cxnhost
+        self._serial = Serial(device, baudrate=9600, timeout=0.5, bytesize=8, parity="N", stopbits=1)
         
-        if self._should_setup_sources:
-            self._setup_sources()
-            self._should_setup_sources = False
+    def update(self):
+        self._pwstate = self._command_with_reply(AMP_CMD_GET_PWSTATE)
+        self._mediasource = self._command_with_reply(AMP_CMD_GET_CURRENT_SOURCE)
+        self._muted = self._command_with_reply(AMP_CMD_GET_MUTE_STATE)
+
+    def _command(self, command):
+        try:
+            self._serial.flush()
+            self._serial.write((command).encode("utf-8"))
+            self._serial.flush()
+        except:
+            _LOGGER.error("Could not send command")
+    
+    def _command_with_reply(self, command):
+        try:
+            self._serial.write((command).encode("utf-8"))
+            reply = self._serial.readline()
+            return(reply.decode("utf-8"))
+        except:
+            _LOGGER.error("Could not send command")
+            return ""
 
     def url_command(self, command):
-        """Establish a telnet connection and sends `command`."""
-        _LOGGER.debug("Sending command: %s", command)
-        urllib.request.urlopen("http://" + self._host + "/" + command).read()
+        urllib.request.urlopen("http://" + self._cxnhost + "/" + command).read()
 
     @property
     def is_volume_muted(self):
-        return self._muted
+        if AMP_REPLY_MUTE_ON in self._muted:
+            return True
+        else:
+            return False
 
     @property
     def name(self):
-        """Return the name of the device."""
         return self._name
 
+    @property
+    def source(self):
+        return self._source_reply_list[self._mediasource]
 
+    @property
+    def sound_mode_list(self):
+        return sorted(list(self._sound_mode_list.keys()))
 
     @property
     def source_list(self):
-        return sorted(list(self._source_list.values()))
+        return sorted(list(self._source_list.keys()))
 
     @property
     def state(self):
-        if self._pwstate == "NETWORK":
+        if AMP_REPLY_PWR_ON in self._pwstate:
+            return STATE_ON
+        else:
             return STATE_OFF
-        if self._pwstate == "ON":
-            if self._state == "play":
-                return STATE_PLAYING
-            elif self._state == "pause":
-                return STATE_PAUSED
-            elif self._state == "stop":
-                return STATE_IDLE
-            else:
-                return STATE_ON
-        return None
 
     @property
     def supported_features(self):
-        return SUPPORT_CXN
-
-    @property
-    def media_title(self):
-        return self._media_title
-
-    @property
-    def media_artist(self):
-        return self._media_artist
-
-    @property
-    def media_image_url(self):
-        _LOGGER.debug("CXN Artwork URL: %s", self._artwork_url)
-        return self._artwork_url
-
-    @property
-    def volume_level(self):
-        return self._volume
+        if self._cxnhost:
+            return SUPPORT_CXA_WITH_CXN
+        return SUPPORT_CXA
 
     def mute_volume(self, mute):
-        self.url_command("smoip/zone/state?mute=" + ("true" if mute else "false"))
+        if mute:
+            self._command(AMP_CMD_SET_MUTE_ON)
+        else:
+            self._command(AMP_CMD_SET_MUTE_OFF)
+
+    def select_sound_mode(self, sound_mode):
+        self._command(self._sound_mode_list[sound_mode])
 
     def select_source(self, source):
-        reverse_source = self._source_list_reverse[source]
-        if reverse_source in [
-            "AIRPLAY",
-            "CAST",
-            "IR",
-            "MEDIA_PLAYER",
-            "SPDIF_COAX",
-            "SPDIF_TOSLINK",
-            "SPOTIFY",
-            "USB_AUDIO",
-            "ROON"
-        ]:
-            self.url_command("smoip/zone/state?source=" + reverse_source)
-        else:
-            self.url_command("smoip/zone/recall_preset?preset=" + reverse_source)
-
-    def set_volume_level(self, volume):
-        vol_str = "smoip/zone/state?volume_percent=" + str(int(volume * 100))
-        self.url_command(vol_str)
+        self._command(self._source_list[source])
 
     def turn_on(self):
-        self.url_command("smoip/system/power?power=ON")
+        self._command(AMP_CMD_SET_PWR_ON)
 
     def turn_off(self):
-        self.url_command("smoip/system/power?power=NETWORK")
+        self._command(AMP_CMD_SET_PWR_OFF)
 
     def volume_up(self):
-        self.url_command("smoip/zone/state?volume_step_change=+1")
+        self.command(AMP_CMD_SET_VOL_UP)
 
     def volume_down(self):
-        self.url_command("smoip/zone/state?volume_step_change=-1")
+        self.command(AMP_CMD_SET_VOL_DOWN)
