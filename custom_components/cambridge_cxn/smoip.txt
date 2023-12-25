@@ -1,0 +1,198 @@
+"/presets/list"
+
+"/system/info/spec"
+"/system/info"
+"/system/network"
+"/system/network/wireless"
+"/system/power"
+"/system/power/spec"
+"/system/display"
+"/system/display/spec"
+"/system/sources"
+"/system/sources/AIRPLAY"
+"/system/sources/CAST"
+"/system/sources/ROON"
+"/system/sources/USB_AUDIO"
+"/system/update"
+
+"/zone/audio"
+"/zone/audio/spec"
+"/zone/play_state"
+"/zone/state"
+"/zone/state/spec"
+
+  var commands = {
+    presets: {
+      list: {
+        cmd: {
+          path: "/presets/list",
+          params: {
+            update: 1,
+          },
+        },
+        msg: "Presets",
+      },
+    },
+    system: {
+      infoSpec: {
+        cmd: {
+          path: "/system/info/spec",
+        },
+        msg: "SystemInfoSpec",
+      },
+      info: {
+        cmd: {
+          path: "/system/info",
+          params: {
+            update: 1,
+          },
+        },
+        msg: "SystemInfo",
+      },
+      network: {
+        cmd: {
+          path: "/system/network",
+          params: {
+            update: 1,
+          },
+        },
+        msg: "NetworkSettings",
+      },
+      networkWireless: {
+        cmd: {
+          path: "/system/network/wireless",
+          params: {
+            update: 1,
+          },
+        },
+        msg: "WirelessSettings",
+      },
+      power: {
+        cmd: {
+          path: "/system/power",
+          params: {
+            update: 1,
+          },
+        },
+        msg: "PowerSettings",
+      },
+      powerSpec: {
+        cmd: {
+          path: "/system/power/spec",
+        },
+        msg: "PowerSpec",
+      },
+      display: {
+        cmd: {
+          path: "/system/display",
+          params: {
+            update: 1,
+          },
+        },
+        msg: "DisplaySettings",
+      },
+      displaySpec: {
+        cmd: {
+          path: "/system/display/spec",
+        },
+        msg: "DisplaySpec",
+      },
+      sources: {
+        cmd: {
+          path: "/system/sources",
+          params: {
+            update: 1,
+          },
+        },
+        msg: "AvailableSources",
+      },
+      sourcesAirplay: {
+        cmd: {
+          path: "/system/sources/AIRPLAY",
+          params: {
+            update: 1,
+          },
+        },
+        msg: "AirplaySettings",
+      },
+      sourcesCast: {
+        cmd: {
+          path: "/system/sources/CAST",
+          params: {
+            update: 1,
+          },
+        },
+        msg: "GoogleCastSettings",
+      },
+      sourcesRoon: {
+        cmd: {
+          path: "/system/sources/ROON",
+          params: {
+            update: 1,
+          },
+        },
+        msg: "RoonSettings",
+      },
+      sourcesUSBAudio: {
+        cmd: {
+          path: "/system/sources/USB_AUDIO",
+          params: {
+            update: 1,
+          },
+        },
+        msg: "USBAudioSettings",
+      },
+      update: {
+        cmd: {
+          path: "/system/update",
+          params: {
+            update: 1,
+          },
+        },
+        msg: "FirmwareUpdates",
+      },
+    },
+    zone: {
+      audio: {
+        cmd: {
+          path: "/zone/audio",
+          params: {
+            update: 1,
+          },
+        },
+        msg: "AudioSettings",
+      },
+      audioSpec: {
+        cmd: {
+          path: "/zone/audio/spec",
+        },
+        msg: "AudioSpec",
+      },
+      play_state: {
+        cmd: {
+          path: "/zone/play_state",
+          params: {
+            zone: "ZONE1",
+            update: 1,
+          },
+        },
+        msg: "PlayState",
+      },
+      state: {
+        cmd: {
+          path: "/zone/state",
+          params: {
+            zone: "ZONE1",
+            update: 1,
+          },
+        },
+        msg: "StateSettings",
+      },
+      stateSpec: {
+        cmd: {
+          path: "/zone/state/spec",
+        },
+        msg: "StateSpec",
+      },
+    },
+  };
