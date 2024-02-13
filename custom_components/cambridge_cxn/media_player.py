@@ -8,9 +8,8 @@ https://github.com/lievencoghe/cambridge_cxn
 import json
 import logging
 import urllib.request
-import requests
-import uuid
 import voluptuous as vol
+import homeassistant.util.dt as dt_util
 
 from homeassistant.components.media_player import MediaPlayerEntity, PLATFORM_SCHEMA
 
@@ -27,13 +26,14 @@ from homeassistant.components.media_player.const import (
     SUPPORT_VOLUME_STEP,
     SUPPORT_VOLUME_SET,
     SUPPORT_SHUFFLE_SET,
-    SUPPORT_REPEAT_SET
+    SUPPORT_REPEAT_SET,
+    SUPPORT_SEEK
 )
 
 from homeassistant.const import CONF_HOST, CONF_NAME, STATE_OFF, STATE_ON, STATE_PAUSED, STATE_PLAYING, STATE_IDLE, STATE_STANDBY
 import homeassistant.helpers.config_validation as cv
 
-__version__ = "0.4"
+__version__ = "0.6"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,6 +49,7 @@ SUPPORT_CXN = (
     | SUPPORT_VOLUME_STEP
     | SUPPORT_SHUFFLE_SET
     | SUPPORT_REPEAT_SET
+    | SUPPORT_SEEK
 )
 
 SUPPORT_CXN_PREAMP = (
@@ -65,6 +66,7 @@ SUPPORT_CXN_PREAMP = (
     | SUPPORT_VOLUME_SET
     | SUPPORT_SHUFFLE_SET
     | SUPPORT_REPEAT_SET
+    | SUPPORT_SEEK
 )
 
 DEFAULT_NAME = "Cambridge Audio CXN"
@@ -114,7 +116,8 @@ class CambridgeCXNDevice(MediaPlayerEntity):
         self._media_artist = None
         self._media_album_name = None
         self._media_duration = None
-
+        self._media_position = None
+        self._media_position_updated_at = None
         _LOGGER.debug( "Set up Cambridge CXN with IP: %s", host)
 
     def _setup_sources(self):
@@ -220,6 +223,7 @@ class CambridgeCXNDevice(MediaPlayerEntity):
             self._artwork_url = playstatemetadata["art_url"]
             self._media_album_name = playstatemetadata["album"]
             self._media_duration = playstatemetadata["duration"]
+            self._media_position_updated_at = dt_util.utcnow()
         except:
             self._media_artist = None
             self._media_title = None
@@ -227,6 +231,29 @@ class CambridgeCXNDevice(MediaPlayerEntity):
             self._media_album_name = None
             self._media_duration = None
 
+            self._media_position = None
+        try:
+            self._media_title = playstatemetadata["title"]
+        except:
+            self._media_title = None
+        try:
+            self._media_artist = playstatemetadata["artist"]
+        except:
+            self._media_artist = None
+        try:
+            self._artwork_url = playstatemetadata["art_url"]
+        except:
+            self._artwork_url = None
+        try:
+            self._media_album_name = playstatemetadata["album"]
+        except:
+            self._media_album_name = None
+        try:
+            self._media_duration = playstatemetadata["duration"]
+            self._media_position = playstatedata["position"]
+        except:
+            self._media_duration = None
+            self._media_position = None
         try:
             self._shuffle_mode = playstatedata["mode_shuffle"]
             self._repeat_mode = playstatedata["mode_repeat"]
@@ -263,7 +290,6 @@ class CambridgeCXNDevice(MediaPlayerEntity):
 
     @property
     def name(self):
-        """Return the name of the device."""
         return self._name
 
     @property
@@ -272,6 +298,8 @@ class CambridgeCXNDevice(MediaPlayerEntity):
 
     @property
     def state(self):
+        _LOGGER.debug("PWSTATE: %s", self._pwstate)
+        _LOGGER.debug("STATE: %s", self._state)
         if self._pwstate == "NETWORK":
             return STATE_OFF
         if self._pwstate == "ON":
@@ -294,6 +322,14 @@ class CambridgeCXNDevice(MediaPlayerEntity):
     @property
     def media_duration(self):
         return self._media_duration
+
+    @property
+    def media_position(self):
+        return self._media_position
+
+    @property
+    def media_position_updated_at(self):
+        return self._media_position_updated_at
 
     @property
     def media_album_name(self):
@@ -358,6 +394,10 @@ class CambridgeCXNDevice(MediaPlayerEntity):
     def set_volume_level(self, volume):
         vol_str = "/smoip/zone/state?volume_percent=" + str(int(volume * 100))
         self._command(vol_str)
+
+    def media_seek(self, position):
+        pos_str = "/smoip/zone/play_control?position=" + str(int(position))
+        self._command(pos_str)
 
     def turn_on(self):
         self._command("/smoip/system/power?power=ON")
